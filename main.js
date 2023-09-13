@@ -17,6 +17,18 @@ var template = require('./lib/template.js');
 const sanitizeHtml = require('sanitize-html');
 
 
+// mysql2 
+const mysql = require('mysql2');
+const res = require('express/lib/response.js');
+var conn = mysql.createConnection({
+	host: '127.0.0.1',
+	user: 'root',
+	password: 'mysql1111',
+	database: 'opentutorials'
+});
+
+
+
 
 var app = http.createServer(
 	function(request,response){
@@ -34,7 +46,7 @@ var app = http.createServer(
 
 			// 홈(WEB)
 			if(queryData.id === undefined) {
-				fs.readdir('data', function(err, fileList) {
+				/* fs.readdir('data', function(err, fileList) {
 					// console.log(fileList);					// [ 'CSS', 'HTML', 'JavaScript' ]
 					var title = 'Welcome';
 					var description = 'Hello, node.js';
@@ -44,34 +56,97 @@ var app = http.createServer(
 		
 					response.writeHead(200);
 					response.end(html);
-				});
+				}); */
+
+				conn.query(
+					`SELECT * FROM topic`, 
+					(err, results, fields) => {
+						// console.log(results);					// [ {id: 1, title: 'MySQL', ...}, {id: 2, title: 'ORACLE', ...}, ... ]
+
+						var title = 'Welcome';
+						var description = 'Hello, node.js';
+
+						var titleList = [];
+						var descriptionList = [];
+						for(let i in results) {						// 배열 안에 객체가 있는 경우 for in을 쓰면 i에는 인덱스(0, 1, 2,...)가 들어간다
+							for(let key in results[i]) {		// 각각의 result[i]는 객체이고, 객체에 for in을 쓰면 key에는 속성(id, title, ...)이 string으로 들어간다
+								if(key === 'title') {
+									titleList.push(results[i][key]);	// results[i].key를 하면 안 된다
+								}
+								if(key === 'description') {
+									descriptionList.push(results[i][key]);
+								}
+							}
+						}
+						// console.log(titleList);							// [ 'MySQL', 'ORACLE', 'SQL Server', 'PostgreSQL', 'MongoDB' ]
+
+						var list = template.list(titleList);
+						var html = template.html(title, list, `<h2>${title}</h2>${description}`, `<a href="/create">create</a>`);
+
+
+						response.writeHead(200);
+						response.end(html);
+					}
+				);
 			}
 
 			// 그 외(HTML, CSS ,JavaScript)
 			else {
-				fs.readdir('data', function(err, fileList) {
-					// console.log(fileList);					// [ 'CSS', 'HTML', 'JavaScript' ]
+				// fs.readdir('data', function(err, fileList) {
+				// 	// console.log(fileList);					// [ 'CSS', 'HTML', 'JavaScript' ]
 
-					var filteredId = path.parse(queryData.id).base;
-					fs.readFile(`./data/${filteredId}`, 'utf-8', function(err, description) {
-						var title = queryData.id;
-						var sanitizedTitle = sanitizeHtml(title);
-						var sanitizedDescription = sanitizeHtml(description);
+				// 	var filteredId = path.parse(queryData.id).base;
+				// 	fs.readFile(`./data/${filteredId}`, 'utf-8', function(err, description) {
+				// 		var title = queryData.id;
+				// 		var sanitizedTitle = sanitizeHtml(title);
+				// 		var sanitizedDescription = sanitizeHtml(description);
 						
-						var list = template.list(fileList);
-						var html = template.html(title, list, 
-							`<h2>${sanitizedTitle}</h2>${sanitizedDescription}`, 
-							`<a href="/create">CREATE</a> 
-							<a href="/update?id=${sanitizedTitle}">UPDATE</a> 
-							<form action="/delete_process" method="post" onsubmit="alert('${sanitizedTitle}항목을 삭제하시겠습니까?');">
-								<input type="hidden" name="id" value="${sanitizedTitle}">
-								<input type="submit" value="delete">
-							</form`);															// delete를 GET방식으로 링크를 드러내서는 안 되므로 POST방식으로 하기 위해 form 사용
+				// 		var list = template.list(fileList);
+				// 		var html = template.html(title, list, 
+				// 			`<h2>${sanitizedTitle}</h2>${sanitizedDescription}`, 
+				// 			`<a href="/create">CREATE</a> 
+				// 			<a href="/update?id=${sanitizedTitle}">UPDATE</a> 
+				// 			<form action="/delete_process" method="post" onsubmit="alert('${sanitizedTitle}항목을 삭제하시겠습니까?');">
+				// 				<input type="hidden" name="id" value="${sanitizedTitle}">
+				// 				<input type="submit" value="delete">
+				// 			</form`);															// delete를 GET방식으로 링크를 드러내서는 안 되므로 POST방식으로 하기 위해 form 사용
+
+				// 		response.writeHead(200);
+				// 		response.end(html);
+				// 	});
+				// });
+
+				var filteredId = path.parse(queryData.id).base;
+				console.log(filteredId);
+
+				conn.query(
+					`SELECT * FROM topic WHERE title='${filteredId}';`, 
+					(err, results, fields) => {
+						// console.log(results);					// [ {id: 1, title: 'MySQL', ...} ]
+
+						var titleList = [];
+						var description;
+
+						for(let i in results) {						// 배열 안에 객체가 있는 경우 for in을 쓰면 i에는 인덱스(0, 1, 2,...)가 들어간다
+							for(let key in results[i]) {		// 각각의 result[i]는 객체이고, 객체에 for in을 쓰면 key에는 속성(id, title, ...)이 string으로 들어간다
+								if(key === 'title') {
+									titleList.push(results[i][key]);	// results[i].key를 하면 안 된다
+								}
+								if(key === 'description') {
+									descriptionList.push(results[i][key]);
+								}
+							}
+						}
+						// console.log(titleList);							// [ 'MySQL', 'ORACLE', 'SQL Server', 'PostgreSQL', 'MongoDB' ]
+
+						var list = template.list(titleList);
+						var html = template.html(filteredId, list, `<h2>${title}</h2>${description}`, `<a href="/create">create</a>`);
+
 
 						response.writeHead(200);
-						response.end(html);
-					});
-				});
+						response.end('DB Success');
+					}
+				);
 			}
 		}
 
