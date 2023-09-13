@@ -19,7 +19,6 @@ const sanitizeHtml = require('sanitize-html');
 
 // mysql2 
 const mysql = require('mysql2');
-const res = require('express/lib/response.js');
 var conn = mysql.createConnection({
 	host: '127.0.0.1',
 	user: 'root',
@@ -46,17 +45,6 @@ var app = http.createServer(
 
 			// 홈(WEB)
 			if(queryData.id === undefined) {
-				/* fs.readdir('data', function(err, fileList) {
-					// console.log(fileList);					// [ 'CSS', 'HTML', 'JavaScript' ]
-					var title = 'Welcome';
-					var description = 'Hello, node.js';
-	
-					var list = template.list(fileList);
-					var html = template.html(title, list, `<h2>${title}</h2>${description}`, `<a href="/create">create</a>`);
-		
-					response.writeHead(200);
-					response.end(html);
-				}); */
 
 				conn.query(
 					`SELECT * FROM topic`, 
@@ -66,23 +54,22 @@ var app = http.createServer(
 						var title = 'Welcome';
 						var description = 'Hello, node.js';
 
-						var titleList = [];
-						var descriptionList = [];
-						for(let i in results) {						// 배열 안에 객체가 있는 경우 for in을 쓰면 i에는 인덱스(0, 1, 2,...)가 들어간다
-							for(let key in results[i]) {		// 각각의 result[i]는 객체이고, 객체에 for in을 쓰면 key에는 속성(id, title, ...)이 string으로 들어간다
-								if(key === 'title') {
-									titleList.push(results[i][key]);	// results[i].key를 하면 안 된다
-								}
-								if(key === 'description') {
-									descriptionList.push(results[i][key]);
-								}
-							}
-						}
+						// var titleList = [];
+						// var descriptionList = [];
+						// for(let i in results) {						// 배열 안에 객체가 있는 경우 for in을 쓰면 i에는 인덱스(0, 1, 2,...)가 들어간다
+						// 	for(let key in results[i]) {		// 각각의 result[i]는 객체이고, 객체에 for in을 쓰면 key에는 속성(id, title, ...)이 string으로 들어간다
+						// 		if(key === 'title') {
+						// 			titleList.push(results[i][key]);	// results[i].key를 하면 안 된다
+						// 		}
+						// 		if(key === 'description') {
+						// 			descriptionList.push(results[i][key]);
+						// 		}
+						// 	}
+						// }
 						// console.log(titleList);							// [ 'MySQL', 'ORACLE', 'SQL Server', 'PostgreSQL', 'MongoDB' ]
 
-						var list = template.list(titleList);
+						var list = template.list(results);
 						var html = template.html(title, list, `<h2>${title}</h2>${description}`, `<a href="/create">create</a>`);
-
 
 						response.writeHead(200);
 						response.end(html);
@@ -116,37 +103,37 @@ var app = http.createServer(
 				// 	});
 				// });
 
-				var filteredId = path.parse(queryData.id).base;
-				console.log(filteredId);
-
 				conn.query(
-					`SELECT * FROM topic WHERE title='${filteredId}';`, 
-					(err, results, fields) => {
-						// console.log(results);					// [ {id: 1, title: 'MySQL', ...} ]
+					`SELECT * FROM topic`, 
+					(err1, results, fields) => {
+						if(err1) throw err1;
+						var list = template.list(results);		// 모든 topic 테이블의 title 가져오기
 
-						var titleList = [];
-						var description;
+						conn.query(
+							`SELECT * FROM topic WHERE id=?`, [queryData.id],		// 첫번째 string의 ?자리에 두번째 배열 요소가 치환됨(DB보안)
+							(err2, result, fields) => {				// result: 1개 row만 가져오기 ==> 주의: 1개지만 배열에 담겨서 들어온다
+								if(err2) throw err2;
 
-						for(let i in results) {						// 배열 안에 객체가 있는 경우 for in을 쓰면 i에는 인덱스(0, 1, 2,...)가 들어간다
-							for(let key in results[i]) {		// 각각의 result[i]는 객체이고, 객체에 for in을 쓰면 key에는 속성(id, title, ...)이 string으로 들어간다
-								if(key === 'title') {
-									titleList.push(results[i][key]);	// results[i].key를 하면 안 된다
-								}
-								if(key === 'description') {
-									descriptionList.push(results[i][key]);
-								}
+								var title = result[0].title;
+								var description = result[0].description;
+
+								var html = template.html(title, list, 
+									`<h2>${title}</h2>${description}`, 
+									`<a href="/create">create</a>
+									<a href="/update?id=${queryData.id}">UPDATE</a> 
+									<form action="/delete_process" method="post" onsubmit="alert('${title}항목을 삭제하시겠습니까?');">
+										<input type="hidden" name="id" value="${queryData.id}">
+										<input type="submit" value="delete">
+									</form>`
+								);
+
+								response.writeHead(200);
+								response.end(html);
+
 							}
-						}
-						// console.log(titleList);							// [ 'MySQL', 'ORACLE', 'SQL Server', 'PostgreSQL', 'MongoDB' ]
-
-						var list = template.list(titleList);
-						var html = template.html(filteredId, list, `<h2>${title}</h2>${description}`, `<a href="/create">create</a>`);
-
-
-						response.writeHead(200);
-						response.end('DB Success');
+						);	// 2번째 query
 					}
-				);
+				);	// 1번째 query
 			}
 		}
 
