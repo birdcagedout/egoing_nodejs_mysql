@@ -69,7 +69,7 @@ var app = http.createServer(
 						// console.log(titleList);							// [ 'MySQL', 'ORACLE', 'SQL Server', 'PostgreSQL', 'MongoDB' ]
 
 						var list = template.list(results);
-						var html = template.html(title, list, `<h2>${title}</h2>${description}`, `<a href="/create">create</a>`);
+						var html = template.html(title, list, `<h2>${title}</h2>${description}`, `<a href="/create">Create</a>`);
 
 						response.writeHead(200);
 						response.end(html);
@@ -79,30 +79,8 @@ var app = http.createServer(
 
 			// 그 외(HTML, CSS ,JavaScript)
 			else {
-				// fs.readdir('data', function(err, fileList) {
-				// 	// console.log(fileList);					// [ 'CSS', 'HTML', 'JavaScript' ]
 
-				// 	var filteredId = path.parse(queryData.id).base;
-				// 	fs.readFile(`./data/${filteredId}`, 'utf-8', function(err, description) {
-				// 		var title = queryData.id;
-				// 		var sanitizedTitle = sanitizeHtml(title);
-				// 		var sanitizedDescription = sanitizeHtml(description);
-						
-				// 		var list = template.list(fileList);
-				// 		var html = template.html(title, list, 
-				// 			`<h2>${sanitizedTitle}</h2>${sanitizedDescription}`, 
-				// 			`<a href="/create">CREATE</a> 
-				// 			<a href="/update?id=${sanitizedTitle}">UPDATE</a> 
-				// 			<form action="/delete_process" method="post" onsubmit="alert('${sanitizedTitle}항목을 삭제하시겠습니까?');">
-				// 				<input type="hidden" name="id" value="${sanitizedTitle}">
-				// 				<input type="submit" value="delete">
-				// 			</form`);															// delete를 GET방식으로 링크를 드러내서는 안 되므로 POST방식으로 하기 위해 form 사용
-
-				// 		response.writeHead(200);
-				// 		response.end(html);
-				// 	});
-				// });
-
+				// DB에서 목록의 title 모두 가져오기
 				conn.query(
 					`SELECT * FROM topic`, 
 					(err1, results, fields) => {
@@ -114,21 +92,31 @@ var app = http.createServer(
 							(err2, result, fields) => {				// result: 1개 row만 가져오기 ==> 주의: 1개지만 배열에 담겨서 들어온다
 								if(err2) throw err2;
 
-								var title = result[0].title;
-								var description = result[0].description;
+								// 만약 그런 id가 없으면 빈 배열 []이 들어온다
+								// console.log(result);						// []
+								if(result.length === 0) {
+									response.writeHead(400);
+									response.end("Bad Request");
+								}
+								// 정상적인 경우라면
+								else {
+									var title = result[0].title;
+									var description = result[0].description;
 
-								var html = template.html(title, list, 
-									`<h2>${title}</h2>${description}`, 
-									`<a href="/create">create</a>
-									<a href="/update?id=${queryData.id}">UPDATE</a> 
-									<form action="/delete_process" method="post" onsubmit="alert('${title}항목을 삭제하시겠습니까?');">
-										<input type="hidden" name="id" value="${queryData.id}">
-										<input type="submit" value="delete">
-									</form>`
-								);
+									var html = template.html(title, list, 
+										`<h2>${title}</h2>${description}`, 
+										`<a href="/create">Create</a>
+										<a href="/update?id=${queryData.id}">UPDATE</a> 
+										<form action="/delete_process" method="post" onsubmit="alert('${title}항목을 삭제하시겠습니까?');">
+											<input type="hidden" name="id" value="${queryData.id}">
+											<input type="submit" value="delete">
+										</form>`
+									);
 
-								response.writeHead(200);
-								response.end(html);
+									response.writeHead(200);
+									response.end(html);
+								}
+								
 
 							}
 						);	// 2번째 query
@@ -139,28 +127,33 @@ var app = http.createServer(
 
 		// 글쓰기(create)
 		else if(pathname === '/create') {
-			fs.readdir('data', function(err, fileList) {
-				// console.log(fileList);					// [ 'CSS', 'HTML', 'JavaScript' ]
-				var title = 'WEB - create';
 
-				var list = template.list(fileList);
-				var html = template.html(title, list, `
-					<form action="/create_process" method="post">
-						<p>
-							<input type="text" name="title" placeholder="title">
-						</p>
-						<p>
-							<textarea name="description" placeholder="description"></textarea>
-						</p>
-						<p>
-							<input type="submit">
-						</p>
-					</form>
-				`, '');
-	
-				response.writeHead(200);
-				response.end(html);
-			});
+			conn.query(
+				`SELECT * FROM topic`, 
+				(err1, results, fields) => {
+					if(err1) throw err1;
+
+					var title = "Create"
+					var list = template.list(results);		// 모든 topic 테이블의 title 가져오기
+					var html = template.html(title, list,
+						`<form action="/create_process" method="post">
+							<p>
+								<input type="text" name="title" placeholder="title">
+							</p>
+							<p>
+								<textarea name="description" placeholder="description"></textarea>
+							</p>
+							<p>
+								<input type="submit">
+							</p>
+						</form>`,
+						`<h3>Create</h3>`
+					);
+
+					response.writeHead(200);
+					response.end(html);
+				}
+			);
 		}
 
 		// 글쓰기 요청을 처리(create_process)
@@ -178,51 +171,103 @@ var app = http.createServer(
 
 			// 서버에 더이상 들어오는 data가 없으면 정보수신이 끝났으므로 이때 호출되는 event listener
 			request.on('end', function(data) {
-				var post = qs.parse(body);
-				// console.log(post);					//  [Object: null prototype] { title: 'node.js', description: '노드가 짱짱맨' }
 
-				var title = post.title;
-				var description = post.description;
-				fs.writeFile(`./data/${title}`, description, 'utf-8', function(err) {
-					if(err) throw err;
+				const params = new URLSearchParams(body);
+				var title = params.get('title');
+				var description = params.get('description');
 
-					response.writeHead(302, {Location: `/?id=${title}`});				// 글쓴 목록이 추가되었음을 보여주는 페이지로 redirection (301=영구이동, 302=임시이동)
-					response.end();																							// title이 한글일 때는 Location: `/?id=${encodeURI(title)}
-				});
+				conn.query(
+					`INSERT INTO topic(title, description, created, author_id) VALUES(?, ?, NOW(), ?)`,
+					[title, description, 1],
+					(err, results, fields) => {
+						if(err) throw err;
+
+						// console.log(results);			// INSERT의 결과는 ResultSetHeader 객체가 들어온다. 이 객체의 indertId는 Insert된 row의 ID를 가지고 있다.
+						response.writeHead(302, {Location: `/?id=${encodeURI(results.insertId)}`});				// 글쓴 목록이 추가되었음을 보여주는 페이지로 redirection (302=임시이동)
+						response.end();
+					}
+				);
 			});
 		}
 
 		// 수정(update)하기
 		else if(pathname === '/update') {
-			fs.readdir('data', function(err, fileList) {
-				// console.log(fileList);					// [ 'CSS', 'HTML', 'JavaScript' ]
+			// fs.readdir('data', function(err, fileList) {
+			// 	// console.log(fileList);					// [ 'CSS', 'HTML', 'JavaScript' ]
 
-				var filteredId = path.parse(queryData.id).base;
-				fs.readFile(`./data/${filteredId}`, 'utf-8', function(err, description) {
-					var title = filteredId;
+			// 	var filteredId = path.parse(queryData.id).base;
+			// 	fs.readFile(`./data/${filteredId}`, 'utf-8', function(err, description) {
+			// 		var title = filteredId;
 					
-					var list = template.list(fileList);
-					var html = template.html(title, list,
-						`
-						<form action="/update_process" method="post">
-						<p>
-							<input type="hidden" name="id" value=${title}>															<!-- 수정 전 원래 title = id -->
-							<input type="text" name="title" placeholder="title" value=${title}>					<!-- 수정 후 title = title -->
-						</p>
-						<p>
-							<textarea name="description" placeholder="description">${description}</textarea>
-						</p>
-						<p>
-							<input type="submit">
-						</p>
-					</form>
-						`, 
-						`<a href="/create">create</a> <a href="/update?id=${title}">update</a>`);
+			// 		var list = template.list(fileList);
+			// 		var html = template.html(title, list,
+			// 			`
+			// 			<form action="/update_process" method="post">
+			// 			<p>
+			// 				<input type="hidden" name="id" value=${title}>															<!-- 수정 전 원래 title = id -->
+			// 				<input type="text" name="title" placeholder="title" value=${title}>					<!-- 수정 후 title = title -->
+			// 			</p>
+			// 			<p>
+			// 				<textarea name="description" placeholder="description">${description}</textarea>
+			// 			</p>
+			// 			<p>
+			// 				<input type="submit">
+			// 			</p>
+			// 		</form>
+			// 			`, 
+			// 			`<a href="/create">create</a> <a href="/update?id=${title}">update</a>`);
 
-					response.writeHead(200);
-					response.end(html);
-				});
-			});
+			// 		response.writeHead(200);
+			// 		response.end(html);
+			// 	});
+			// });
+
+			conn.query(
+				`SELECT * FROM topic`,
+				(err, results, fields) => {
+					if(err) throw err;
+					var list = template.list(results);
+
+					conn.query(
+						'SELECT * FROM topic WHERE id = ?',
+						[queryData.id],
+						(err2, result, fields) => {
+
+							// 만약 DB에 id가 없는 경우
+							if(result.length === 0) {
+								response.writeHead(400);
+								response.end("Bad Request");
+							}
+							// DB에 정상적으로 id가 있는 경우
+							else {
+								var id = result[0].id;
+								var title = result[0].title;
+								var description = result[0].description;
+
+								var html = template.html(title, list,
+									`
+									<form action="/update_process" method="post">
+										<p>
+											<input type="hidden" name="id" value=${id}>
+											<input type="text" name="title" placeholder="title" value=${title}>				<!-- 수정 후 title = title -->
+										</p>
+										<p>
+											<textarea name="description" placeholder="description">${description}</textarea>
+										</p>
+										<p>
+											<input type="submit">
+										</p>
+									</form>
+									`, 
+									`<a href="/create">create</a> <a href="/update?id=${result[0].id}">update</a>`);
+			
+								response.writeHead(200);
+								response.end(html);
+							}
+						}
+					);
+				}
+			);
 		}
 
 		// 수정 요청 처리하기(update_process)
