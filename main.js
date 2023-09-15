@@ -47,26 +47,12 @@ var app = http.createServer(
 			if(queryData.id === undefined) {
 
 				conn.query(
-					`SELECT * FROM topic`, 
+					`SELECT * FROM topic;`, 
 					(err, results, fields) => {
 						// console.log(results);					// [ {id: 1, title: 'MySQL', ...}, {id: 2, title: 'ORACLE', ...}, ... ]
 
 						var title = 'Welcome';
 						var description = 'Hello, node.js';
-
-						// var titleList = [];
-						// var descriptionList = [];
-						// for(let i in results) {						// 배열 안에 객체가 있는 경우 for in을 쓰면 i에는 인덱스(0, 1, 2,...)가 들어간다
-						// 	for(let key in results[i]) {		// 각각의 result[i]는 객체이고, 객체에 for in을 쓰면 key에는 속성(id, title, ...)이 string으로 들어간다
-						// 		if(key === 'title') {
-						// 			titleList.push(results[i][key]);	// results[i].key를 하면 안 된다
-						// 		}
-						// 		if(key === 'description') {
-						// 			descriptionList.push(results[i][key]);
-						// 		}
-						// 	}
-						// }
-						// console.log(titleList);							// [ 'MySQL', 'ORACLE', 'SQL Server', 'PostgreSQL', 'MongoDB' ]
 
 						var list = template.list(results);
 						var html = template.html(title, list, `<h2>${title}</h2>${description}`, `<a href="/create">Create</a>`);
@@ -82,13 +68,14 @@ var app = http.createServer(
 
 				// DB에서 목록의 title 모두 가져오기
 				conn.query(
-					`SELECT * FROM topic`, 
+					`SELECT * FROM topic;`, 
 					(err1, results, fields) => {
 						if(err1) throw err1;
 						var list = template.list(results);		// 모든 topic 테이블의 title 가져오기
 
 						conn.query(
-							`SELECT * FROM topic WHERE id=?`, [queryData.id],		// 첫번째 string의 ?자리에 두번째 배열 요소가 치환됨(DB보안)
+							`SELECT * FROM topic LEFT JOIN author ON topic.author_id=author.id WHERE topic.id=?`, 
+							[queryData.id],										// 첫번째 string의 ?자리에 두번째 배열 요소가 치환됨(DB보안)
 							(err2, result, fields) => {				// result: 1개 row만 가져오기 ==> 주의: 1개지만 배열에 담겨서 들어온다
 								if(err2) throw err2;
 
@@ -102,9 +89,12 @@ var app = http.createServer(
 								else {
 									var title = result[0].title;
 									var description = result[0].description;
+									var author = result[0].name;
 
 									var html = template.html(title, list, 
-										`<h2>${title}</h2>${description}`, 
+										`<h2>${title}</h2>
+										${description}<p>
+										<h4>by ${author}</h4>`, 
 										`<a href="/create">Create</a>
 										<a href="/update?id=${queryData.id}">UPDATE</a> 
 										<form action="/delete_process" method="post" onsubmit="alert('${title}항목을 삭제하시겠습니까?');">
@@ -116,8 +106,6 @@ var app = http.createServer(
 									response.writeHead(200);
 									response.end(html);
 								}
-								
-
 							}
 						);	// 2번째 query
 					}
@@ -129,7 +117,7 @@ var app = http.createServer(
 		else if(pathname === '/create') {
 
 			conn.query(
-				`SELECT * FROM topic`, 
+				`SELECT * FROM topic;`, 
 				(err1, results, fields) => {
 					if(err1) throw err1;
 
@@ -183,7 +171,7 @@ var app = http.createServer(
 						if(err) throw err;
 
 						// console.log(results);			// INSERT의 결과는 ResultSetHeader 객체가 들어온다. 이 객체의 indertId는 Insert된 row의 ID를 가지고 있다.
-						response.writeHead(302, {Location: `/?id=${encodeURI(results.insertId)}`});				// 글쓴 목록이 추가되었음을 보여주는 페이지로 redirection (302=임시이동)
+						response.writeHead(302, {Location: `/?id=${results.insertId}`});				// 글쓴 목록이 추가되었음을 보여주는 페이지로 redirection (302=임시이동)
 						response.end();
 					}
 				);
@@ -192,35 +180,6 @@ var app = http.createServer(
 
 		// 수정(update)하기
 		else if(pathname === '/update') {
-			// fs.readdir('data', function(err, fileList) {
-			// 	// console.log(fileList);					// [ 'CSS', 'HTML', 'JavaScript' ]
-
-			// 	var filteredId = path.parse(queryData.id).base;
-			// 	fs.readFile(`./data/${filteredId}`, 'utf-8', function(err, description) {
-			// 		var title = filteredId;
-					
-			// 		var list = template.list(fileList);
-			// 		var html = template.html(title, list,
-			// 			`
-			// 			<form action="/update_process" method="post">
-			// 			<p>
-			// 				<input type="hidden" name="id" value=${title}>															<!-- 수정 전 원래 title = id -->
-			// 				<input type="text" name="title" placeholder="title" value=${title}>					<!-- 수정 후 title = title -->
-			// 			</p>
-			// 			<p>
-			// 				<textarea name="description" placeholder="description">${description}</textarea>
-			// 			</p>
-			// 			<p>
-			// 				<input type="submit">
-			// 			</p>
-			// 		</form>
-			// 			`, 
-			// 			`<a href="/create">create</a> <a href="/update?id=${title}">update</a>`);
-
-			// 		response.writeHead(200);
-			// 		response.end(html);
-			// 	});
-			// });
 
 			conn.query(
 				`SELECT * FROM topic`,
@@ -233,7 +192,7 @@ var app = http.createServer(
 						[queryData.id],
 						(err2, result, fields) => {
 
-							// 만약 DB에 id가 없는 경우
+							// 만약 DB에 id가 없는 경우 ==> 원래 있던 item인데 Update를 누르기 전에 DB에서 삭제한 경우
 							if(result.length === 0) {
 								response.writeHead(400);
 								response.end("Bad Request");
@@ -285,39 +244,33 @@ var app = http.createServer(
 
 			// 서버에 더이상 들어오는 data가 없으면 정보수신이 끝났으므로 이때 호출되는 event listener
 			request.on('end', function(data) {
-				var post = qs.parse(body);
-				// console.log(post);					//  [Object: null prototype] { title: 'node.js', description: '노드가 짱짱맨' }
+				var params = new URLSearchParams(body);
 
-				var id = post.id;
-				var title = post.title;
-				var description = post.description;
-				// console.log(post);
+				var id = params.get('id');
+				var title = params.get('title');
+				var description = params.get('description');
+				// console.log(`${id}, ${title}, ${description}`);
 
-				/*
-				// 일단 파일을 쓰고
-				fs.writeFile(`./data/${title}`, description, 'utf-8', function(err) {
-					if(err) throw err;
-
-					response.writeHead(302, {Location: `/?id=${title}`});
-					response.end();
-				});
-
-				// id와 title이 다르다면 id(예전 title)로 된 파일을 지워준다
-				if(id !== title) {
-					fs.rm(`./data/${id}`, function(err) {
-						if(err) throw err;
-					});						
-				}
-				*/
-
-				fs.rename(`data/${id}`, `data/${title}`, function(error){
-					if(error) throw error;
-					fs.writeFile(`data/${title}`, description, 'utf8', function(err){
-						if(err) throw err;
-						response.writeHead(302, {Location: `/?id=${title}`});
+				conn.query(
+					`UPDATE topic SET title=?, description=? WHERE id=?;`,
+					[title, description, id],
+					(err, result, fields) => {
+						// console.log(result);
+						// 결과값
+						// ResultSetHeader {
+						// 	fieldCount: 0,
+						// 	affectedRows: 1,
+						// 	insertId: 0,
+						// 	info: 'Rows matched: 1  Changed: 1  Warnings: 0',
+						// 	serverStatus: 2,
+						// 	warningStatus: 0,
+						// 	changedRows: 1
+						// }
+						
+						response.writeHead(302, {Location: `/?id=${id}`});				// 글쓴 목록이 추가되었음을 보여주는 페이지로 redirection (302=임시이동)
 						response.end();
-					})
-				});
+					}
+				);
 			});
 		}
 
@@ -336,15 +289,37 @@ var app = http.createServer(
 
 			// 서버에 더이상 들어오는 data가 없으면 정보수신이 끝났으므로 이때 호출되는 event listener
 			request.on('end', function(data) {
-				var post = qs.parse(body);
+				// var post = qs.parse(body);
 				// console.log(post);					//  [Object: null prototype] { title: 'node.js', description: '노드가 짱짱맨' }
 
-				var id = post.id;
-				var filteredId = path.parse(id).base;
-				fs.unlink(`./data/${filteredId}`, function(err){
-					response.writeHead(302, {Location: `/`});
-					response.end();
-				});
+				var params = new URLSearchParams(body);
+				var id = params.get('id');
+
+				// var filteredId = path.parse(id).base;
+				// fs.unlink(`./data/${filteredId}`, function(err){
+				// 	response.writeHead(302, {Location: `/`});
+				// 	response.end();
+				// });
+
+				conn.query(
+					`DELETE FROM topic WHERE id=?`,
+					[id],
+					(err, results, fields) => {
+						if(err) throw err;
+						// console.log(results);
+						// ResultSetHeader {
+						  // fieldCount: 0,
+						  // affectedRows: 1,
+						  // insertId: 0,
+						  // info: '',
+						  // serverStatus: 2,
+						  // warningStatus: 0,
+						  // changedRows: 0
+						// }						
+						response.writeHead(302, {Location: '/'});
+						response.end();
+					}
+				);
 			});
 		}
 
