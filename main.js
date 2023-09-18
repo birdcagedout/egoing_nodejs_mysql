@@ -11,7 +11,7 @@ const url = require('url');
 const template = require('./lib/template.js');
 
 // topic 모듈로 분리
-const topic = require('./lib/topic.js')
+const topic = require('./lib/topic.js');
 
 // mysql2, connection을 모듈로 분리 + connection 객체만 exports
 const db = require('./lib/db.js');
@@ -25,7 +25,7 @@ const author = require('./lib/author.js');
 
 var app = http.createServer(
 	function(request,response){
-    var _url = request.url;							// _url: '/?id=1'
+    var _url = request.url;												// _url: '/?id=1'
 		var queryData = url.parse(_url, true).query;	// queryData: { id: 1 }, queryData.id: 1
 		var pathname = url.parse(_url, true).pathname;
 
